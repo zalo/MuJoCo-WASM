@@ -74,7 +74,9 @@ typedef enum mjtEvent_ {          // mouse and keyboard event type
   mjEVENT_RELEASE,                // mouse button release
   mjEVENT_SCROLL,                 // scroll
   mjEVENT_KEY,                    // key press
-  mjEVENT_RESIZE                  // resize
+  mjEVENT_RESIZE,                 // resize
+  mjEVENT_REDRAW,                 // redraw
+  mjEVENT_FILESDROP               // files drop
 } mjtEvent;
 
 
@@ -143,6 +145,10 @@ struct mjuiState_ {               // mouse and keyboard state
   int mouserect;                  // which rectangle contains mouse
   int dragrect;                   // which rectangle is dragged with mouse
   int dragbutton;                 // which button started drag (mjtButton)
+
+  // files dropping (only valid when type == mjEVENT_FILESDROP)
+  int dropcount;                  // number of files dropped
+  const char** droppaths;         // paths to files dropped
 };
 typedef struct mjuiState_ mjuiState;
 
@@ -201,9 +207,9 @@ struct mjuiItemSingle_ {          // check and button-related
 };
 
 
-struct mjuiItemMulti_ {           // static, radio and select-related
-  int nelem;                      // number of elements in group
-  char name[mjMAXUIMULTI][mjMAXUINAME]; // element names
+struct mjuiItemMulti_ {                  // static, radio and select-related
+  int nelem;                             // number of elements in group
+  char name[mjMAXUIMULTI][mjMAXUINAME];  // element names
 };
 
 
@@ -230,10 +236,10 @@ struct mjuiItem_ {                // UI item
 
   // type-specific properties
   union {
-    struct mjuiItemSingle_ single; // check and button
-    struct mjuiItemMulti_ multi;   // static, radio and select
-    struct mjuiItemSlider_ slider; // slider
-    struct mjuiItemEdit_ edit;     // edit
+    struct mjuiItemSingle_ single;  // check and button
+    struct mjuiItemMulti_ multi;    // static, radio and select
+    struct mjuiItemSlider_ slider;  // slider
+    struct mjuiItemEdit_ edit;      // edit
   };
 
   // internal

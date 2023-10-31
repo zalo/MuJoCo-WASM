@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 231
+#define mjVERSION_HEADER 235
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -46,6 +46,14 @@ extern "C" {
 #define mjFREESTACK   d->pstack = _mark;
 #define mjDISABLED(x) (m->opt.disableflags & (x))
 #define mjENABLED(x)  (m->opt.enableflags & (x))
+
+#ifndef mjPRINTFLIKE
+  #if defined(__GNUC__)
+    #define mjPRINTFLIKE(n, m) __attribute__((format(printf, n, m)))
+  #else
+    #define mjPRINTFLIKE(n, m)
+  #endif // __GNUC__
+#endif // mjPRINTFLIKE
 
 
 // user error and memory handlers
@@ -106,13 +114,11 @@ MJAPI void mj_deleteVFS(mjVFS* vfs);
 // Parse XML file in MJCF or URDF format, compile it, return low-level model.
 // If vfs is not NULL, look up files in vfs before reading from disk.
 // If error is not NULL, it must have size error_sz.
-MJAPI mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
-                          char* error, int error_sz);
+MJAPI mjModel* mj_loadXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);
 
 // Update XML data structures with info from low-level model, save as MJCF.
 // If error is not NULL, it must have size error_sz.
-MJAPI int mj_saveLastXML(const char* filename, const mjModel* m,
-                         char* error, int error_sz);
+MJAPI int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int error_sz);
 
 // Free last XML model if loaded. Called internally at each load.
 MJAPI void mj_freeLastXML(void);
@@ -176,7 +182,7 @@ MJAPI void mj_deleteModel(mjModel* m);
 // Return size of buffer needed to hold model.
 MJAPI int mj_sizeModel(const mjModel* m);
 
-// Allocate mjData correponding to given model.
+// Allocate mjData corresponding to given model.
 // If the model buffer is unallocated the initial configuration will not be set.
 MJAPI mjData* mj_makeData(const mjModel* m);
 
@@ -193,8 +199,11 @@ MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_va
 // Reset data, set fields from specified keyframe.
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
-// Allocate array of specified size on mjData stack. Call mju_error on stack overflow.
+// Allocate array of mjtNums on mjData stack. Call mju_error on stack overflow.
 MJAPI mjtNum* mj_stackAlloc(mjData* d, int size);
+
+// Allocate array of ints on mjData stack. Call mju_error on stack overflow.
+MJAPI int* mj_stackAllocInt(mjData* d, int size);
 
 // Free memory allocation in mjData.
 MJAPI void mj_deleteData(mjData* d);
@@ -246,7 +255,7 @@ MJAPI void mj_fwdVelocity(const mjModel* m, mjData* d);
 // Compute actuator force qfrc_actuator.
 MJAPI void mj_fwdActuation(const mjModel* m, mjData* d);
 
-// Add up all non-constraint forces, compute qacc_unc.
+// Add up all non-constraint forces, compute qacc_smooth.
 MJAPI void mj_fwdAcceleration(const mjModel* m, mjData* d);
 
 // Run selected constraint solver.
@@ -345,7 +354,7 @@ MJAPI void mj_collision(const mjModel* m, mjData* d);
 // Construct constraints.
 MJAPI void mj_makeConstraint(const mjModel* m, mjData* d);
 
-// Compute inverse constaint inertia efc_AR.
+// Compute inverse constraint inertia efc_AR.
 MJAPI void mj_projectConstraint(const mjModel* m, mjData* d);
 
 // Compute efc_vel, efc_aref.
@@ -400,10 +409,10 @@ MJAPI void mj_jacSite(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* j
 MJAPI void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacAxis,
                            const mjtNum point[3], const mjtNum axis[3], int body);
 
-// Get id of object with specified name, return -1 if not found; type is mjtObj.
+// Get id of object with the specified mjtObj type and name, returns -1 if id not found.
 MJAPI int mj_name2id(const mjModel* m, int type, const char* name);
 
-// Get name of object with specified id, return 0 if invalid type or id; type is mjtObj.
+// Get name of object with the specified mjtObj type and id, returns NULL if name not found.
 MJAPI const char* mj_id2name(const mjModel* m, int type, int id);
 
 // Convert sparse inertia matrix M into full (i.e. dense) matrix.
@@ -419,15 +428,15 @@ MJAPI void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum
 // Destination can be sparse uncompressed, or dense when all int* are NULL
 MJAPI void mj_addM(const mjModel* m, mjData* d, mjtNum* dst, int* rownnz, int* rowadr, int* colind);
 
-// Apply cartesian force and torque (outside xfrc_applied mechanism).
+// Apply Cartesian force and torque (outside xfrc_applied mechanism).
 MJAPI void mj_applyFT(const mjModel* m, mjData* d, const mjtNum force[3], const mjtNum torque[3],
                       const mjtNum point[3], int body, mjtNum* qfrc_target);
 
-// Compute object 6D velocity in object-centered frame, world/local orientation.
+// Compute object 6D velocity (rot:lin) in object-centered frame, world/local orientation.
 MJAPI void mj_objectVelocity(const mjModel* m, const mjData* d,
                              int objtype, int objid, mjtNum res[6], int flg_local);
 
-// Compute object 6D acceleration in object-centered frame, world/local orientation.
+// Compute object 6D acceleration (rot:lin) in object-centered frame, world/local orientation.
 MJAPI void mj_objectAcceleration(const mjModel* m, const mjData* d,
                                  int objtype, int objid, mjtNum res[6], int flg_local);
 
@@ -482,19 +491,19 @@ MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], cons
                     const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                     int geomid[1]);
 
-// Interect ray with hfield, return nearest distance or -1 if no intersection.
+// Intersect ray with hfield, return nearest distance or -1 if no intersection.
 MJAPI mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
                           const mjtNum pnt[3], const mjtNum vec[3]);
 
-// Interect ray with mesh, return nearest distance or -1 if no intersection.
+// Intersect ray with mesh, return nearest distance or -1 if no intersection.
 MJAPI mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
                         const mjtNum pnt[3], const mjtNum vec[3]);
 
-// Interect ray with pure geom, return nearest distance or -1 if no intersection.
+// Intersect ray with pure geom, return nearest distance or -1 if no intersection.
 MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
                          const mjtNum pnt[3], const mjtNum vec[3], int geomtype);
 
-// Interect ray with skin, return nearest distance or -1 if no intersection,
+// Intersect ray with skin, return nearest distance or -1 if no intersection,
 // and also output nearest vertex id.
 MJAPI mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
                          const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]);
@@ -537,17 +546,26 @@ MJAPI void mjv_alignToCamera(mjtNum res[3], const mjtNum vec[3], const mjtNum fo
 MJAPI void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
                           const mjvScene* scn, mjvCamera* cam);
 
+// Move camera with mouse given a scene state; action is mjtMouse.
+MJAPI void mjv_moveCameraFromState(const mjvSceneState* scnstate, int action,
+                                   mjtNum reldx, mjtNum reldy,
+                                   const mjvScene* scn, mjvCamera* cam);
+
 // Move perturb object with mouse; action is mjtMouse.
 MJAPI void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx,
                            mjtNum reldy, const mjvScene* scn, mjvPerturb* pert);
+
+// Move perturb object with mouse given a scene state; action is mjtMouse.
+MJAPI void mjv_movePerturbFromState(const mjvSceneState* scnstate, int action,
+                                    mjtNum reldx, mjtNum reldy,
+                                    const mjvScene* scn, mjvPerturb* pert);
 
 // Move model with mouse; action is mjtMouse.
 MJAPI void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
                          const mjtNum roomup[3], mjvScene* scn);
 
 // Copy perturb pos,quat from selected body; set scale for perturbation.
-MJAPI void mjv_initPerturb(const mjModel* m, const mjData* d,
-                           const mjvScene* scn, mjvPerturb* pert);
+MJAPI void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPerturb* pert);
 
 // Set perturb pos,quat in d->mocap when selected body is mocap, and in d->qpos otherwise.
 // Write d->qpos only if flg_paused and subtree root for selected body has free joint.
@@ -580,6 +598,7 @@ MJAPI void mjv_initGeom(mjvGeom* geom, int type, const mjtNum size[3],
 
 // Set (type, size, pos, mat) for connector-type geom between given points.
 // Assume that mjv_initGeom was already called to set all other properties.
+// Width of mjGEOM_LINE is denominated in pixels.
 MJAPI void mjv_makeConnector(mjvGeom* geom, int type, mjtNum width,
                              mjtNum a0, mjtNum a1, mjtNum a2,
                              mjtNum b0, mjtNum b1, mjtNum b2);
@@ -596,6 +615,25 @@ MJAPI void mjv_freeScene(mjvScene* scn);
 // Update entire scene given model state.
 MJAPI void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
                            const mjvPerturb* pert, mjvCamera* cam, int catmask, mjvScene* scn);
+
+// Update entire scene from a scene state, return the number of new mjWARN_VGEOMFULL warnings.
+MJAPI int mjv_updateSceneFromState(const mjvSceneState* scnstate, const mjvOption* opt,
+                                   const mjvPerturb* pert, mjvCamera* cam, int catmask,
+                                   mjvScene* scn);
+
+// Set default scene state.
+MJAPI void mjv_defaultSceneState(mjvSceneState* scnstate);
+
+// Allocate resources and initialize a scene state object.
+MJAPI void mjv_makeSceneState(const mjModel* m, const mjData* d,
+                              mjvSceneState* scnstate, int maxgeom);
+
+// Free scene state.
+MJAPI void mjv_freeSceneState(mjvSceneState* scnstate);
+
+// Update a scene state from model and data.
+MJAPI void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
+                                mjvSceneState* scnstate);
 
 // Add geoms from selected categories.
 MJAPI void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* opt,
@@ -627,6 +665,9 @@ MJAPI void mjr_addAux(int index, int width, int height, int samples, mjrContext*
 
 // Free resources in custom OpenGL context, set to default.
 MJAPI void mjr_freeContext(mjrContext* con);
+
+// Resize offscreen buffers.
+MJAPI void mjr_resizeOffscreen(int width, int height, mjrContext* con);
 
 // Upload texture to GPU, overwriting previous upload if any.
 MJAPI void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid);
@@ -731,21 +772,21 @@ MJAPI void mjui_render(mjUI* ui, const mjuiState* state, const mjrContext* con);
 //---------------------------------- Error and memory ----------------------------------------------
 
 // Main error function; does not return to caller.
-MJAPI void mju_error(const char* msg);
+MJAPI void mju_error(const char* msg, ...) mjPRINTFLIKE(1, 2);
 
-// Error function with int argument; msg is a printf format string.
+// Deprecated: use mju_error.
 MJAPI void mju_error_i(const char* msg, int i);
 
-// Error function with string argument.
+// Deprecated: use mju_error.
 MJAPI void mju_error_s(const char* msg, const char* text);
 
 // Main warning function; returns to caller.
-MJAPI void mju_warning(const char* msg);
+MJAPI void mju_warning(const char* msg, ...) mjPRINTFLIKE(1, 2);
 
-// Warning function with int argument.
+// Deprecated: use mju_warning.
 MJAPI void mju_warning_i(const char* msg, int i);
 
-// Warning function with string argument.
+// Deprecated: use mju_warning.
 MJAPI void mju_warning_s(const char* msg, const char* text);
 
 // Clear user error and memory handlers.
@@ -775,8 +816,8 @@ MJAPI void mj_deactivate(void);
 
 //---------------------------------- Standard math -------------------------------------------------
 
-#define mjMAX(a,b) (((a) > (b)) ? (a) : (b))
-#define mjMIN(a,b) (((a) < (b)) ? (a) : (b))
+#define mjMAX(a, b) (((a) > (b)) ? (a) : (b))
+#define mjMIN(a, b) (((a) < (b)) ? (a) : (b))
 
 #ifdef mjUSEDOUBLE
   #define mju_sqrt    sqrt
@@ -919,7 +960,7 @@ MJAPI mjtNum mju_normalize(mjtNum* res, int n);
 MJAPI mjtNum mju_norm(const mjtNum* res, int n);
 
 // Return dot-product of vec1 and vec2.
-MJAPI mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, const int n);
+MJAPI mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n);
 
 // Multiply matrix and vector: res = mat * vec.
 MJAPI void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc);
@@ -1104,7 +1145,7 @@ MJAPI const char* mju_type2Str(int type);
 MJAPI int mju_str2Type(const char* str);
 
 // Return human readable number of bytes using standard letter suffix.
-MJAPI const char* mju_writeNumBytes(const size_t nbytes);
+MJAPI const char* mju_writeNumBytes(size_t nbytes);
 
 // Construct a warning message given the warning type and info.
 MJAPI const char* mju_warningText(int warning, size_t info);
@@ -1182,6 +1223,25 @@ MJAPI const mjpPlugin* mjp_getPlugin(const char* name, int* slot);
 
 // Look up a plugin by the registered slot number that was returned by mjp_registerPlugin.
 MJAPI const mjpPlugin* mjp_getPluginAtSlot(int slot);
+
+// Set default resource provider definition.
+MJAPI void mjp_defaultResourceProvider(mjpResourceProvider* provider);
+
+// Globally register a resource provider in a thread-safe manner. The provider must have a prefix
+// that is not a sub-prefix or super-prefix of any current registered providers.  This function
+// returns a slot number > 0 on success.
+MJAPI int mjp_registerResourceProvider(const mjpResourceProvider* provider);
+
+// Return the number of globally registered resource providers.
+MJAPI int mjp_resourceProviderCount();
+
+// Return the resource provider with the prefix that matches against the resource name.
+// If no match, return NULL.
+MJAPI const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name);
+
+// Look up a resource provider by slot number returned by mjp_registerResourceProvider.
+// If invalid slot number, return NULL.
+MJAPI const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
 
 
 #if defined(__cplusplus)

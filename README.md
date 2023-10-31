@@ -14,6 +14,7 @@
       <img src="https://img.shields.io/badge/license-MIT-brightgreen" title="License: MIT"></a>
 </p>
 
+
 ## The Power of MuJoCo in your Browser.
 
 Load and Run MuJoCo 2.3.1 Models using JavaScript and WebAssembly.
@@ -25,6 +26,10 @@ This repo is a fork of @stillonearth 's starter repository, adding tons of funct
 ### [See a more Advanced Example Here](https://kzakka.com/robopianist/)
 
 ## Building
+
+**0. (Optional) Build MuJoCo libs with WASM targets**
+
+This repo includes built MuJoCo libs for `v2.3.3`. If you want to build your own, follow the [instructions](https://github.com/stillonearth/MuJoCo-WASM/issues/1#issuecomment-1495814568).
 
 **1. Install emscripten**
 
